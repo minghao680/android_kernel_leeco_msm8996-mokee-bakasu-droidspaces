@@ -21,6 +21,17 @@
 #include <asm/tlbflush.h>
 #include "internal.h"
 
+#if defined(CONFIG_KSU_SUSFS_SUS_KSTAT) || defined(CONFIG_KSU_SUSFS_SUS_MAP) || defined(CONFIG_KSU_SUSFS_OPEN_REDIRECT)
+#include <linux/susfs_def.h>
+#endif
+#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
+extern void susfs_sus_kstat_spoof_show_map_vma(struct inode *inode, dev_t *out_dev, unsigned long *out_ino);
+#endif // #ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
+#ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
+extern struct srcu_struct susfs_srcu_open_redirect;
+extern int susfs_open_redirect_spoof_show_map_vma_srcu(struct inode *inode, unsigned long *out_ino, dev_t *out_dev, char **out_spoofed_name);
+#endif // #ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
+
 void task_mem(struct seq_file *m, struct mm_struct *mm)
 {
 	unsigned long data, text, lib, swap;
@@ -323,12 +334,49 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma, int is_pid)
 	unsigned long start, end;
 	dev_t dev = 0;
 	const char *name = NULL;
+#ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
+	char *spoofed_redirected_name = NULL;
+#endif
 
 	if (file) {
 		struct inode *inode = file_inode(vma->vm_file);
+#ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
+		if (SUSFS_IS_INODE_OPEN_REDIRECT(inode)) {
+			int srcu_idx = srcu_read_lock(&susfs_srcu_open_redirect);
+			int ret = susfs_open_redirect_spoof_show_map_vma_srcu(inode, &ino, &dev, &spoofed_redirected_name);
+			if (!ret) {
+				pgoff = ((loff_t)vma->vm_pgoff) << PAGE_SHIFT;
+				start = vma->vm_start;
+				end = vma->vm_end;
+				/* 3.18 has no show_vma_header_prefix(); emit inline */
+				seq_setwidth(m, 25 + sizeof(void *) * 6 - 1);
+				seq_printf(m, "%08lx-%08lx %c%c%c%c %08llx %02x:%02x %lu ",
+						start, end,
+						flags & VM_READ ? 'r' : '-',
+						flags & VM_WRITE ? 'w' : '-',
+						flags & VM_EXEC ? 'x' : '-',
+						flags & VM_MAYSHARE ? 's' : 'p',
+						pgoff, MAJOR(dev), MINOR(dev), ino);
+				seq_pad(m, ' ');
+				if (spoofed_redirected_name)
+					seq_puts(m, spoofed_redirected_name);
+				seq_putc(m, '\n');
+				srcu_read_unlock(&susfs_srcu_open_redirect, srcu_idx);
+				return;
+			}
+			srcu_read_unlock(&susfs_srcu_open_redirect, srcu_idx);
+		}
+#endif // #ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
+#ifdef CONFIG_KSU_SUSFS_SUS_MAP
+		if (SUSFS_IS_INODE_SUS_MAP(inode))
+			return;
+#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MAP
 		dev = inode->i_sb->s_dev;
 		ino = inode->i_ino;
 		pgoff = ((loff_t)vma->vm_pgoff) << PAGE_SHIFT;
+#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
+		susfs_sus_kstat_spoof_show_map_vma(inode, &dev, &ino);
+#endif // #ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
 	}
 
 	/* We don't show the stack guard page in /proc/maps */
@@ -678,6 +726,13 @@ static int show_smap(struct seq_file *m, void *v, int is_pid)
 	memset(&mss, 0, sizeof mss);
 	mss.vma = vma;
 	/* mmap_sem is held in m_start */
+#ifdef CONFIG_KSU_SUSFS_SUS_MAP
+	/* 3.18 has no smaps_rollup (rollup_mode), so emitting nothing for
+	 * this vma hides its whole smaps entry; seq iteration continues.
+	 */
+	if (vma->vm_file && SUSFS_IS_INODE_SUS_MAP(file_inode(vma->vm_file)))
+		return 0;
+#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MAP
 	if (vma->vm_mm && !is_vm_hugetlb_page(vma))
 		walk_page_range(vma->vm_start, vma->vm_end, &smaps_walk);
 
@@ -1293,6 +1348,43 @@ static int pagemap_hugetlb_range(pte_t *pte, unsigned long hmask,
  * determine which areas of memory are actually mapped and llseek to
  * skip over unmapped regions.
  */
+#ifdef CONFIG_KSU_SUSFS_SUS_MAP
+/* Caller holds mm->mmap_sem. Hidden pages have the same zero representation as
+ * unmapped holes (make_pme(PM_NOT_PRESENT)), including read length and position;
+ * never skip a walk chunk.
+ */
+static int susfs_pagemap_walk(struct mm_struct *mm, unsigned long start,
+			      unsigned long end, struct mm_walk *walk)
+{
+	struct pagemapread *pm = walk->private;
+
+	while (start < end) {
+		struct vm_area_struct *vma = find_vma(mm, start);
+		unsigned long next = end;
+		int ret;
+
+		if (vma)
+			next = min(end, start < vma->vm_start ? vma->vm_start : vma->vm_end);
+		if (vma && start >= vma->vm_start && vma->vm_file &&
+		    SUSFS_IS_INODE_SUS_MAP(file_inode(vma->vm_file))) {
+			pagemap_entry_t pme = make_pme(PM_NOT_PRESENT(pm->v2));
+
+			for (; start < next; start += PAGE_SIZE) {
+				ret = add_to_pagemap(start, &pme, pm);
+				if (ret)
+					return ret;
+			}
+		} else {
+			ret = walk_page_range(start, next, walk);
+			if (ret)
+				return ret;
+		}
+		start = next;
+	}
+	return 0;
+}
+#endif
+
 static ssize_t pagemap_read(struct file *file, char __user *buf,
 			    size_t count, loff_t *ppos)
 {
@@ -1365,7 +1457,11 @@ static ssize_t pagemap_read(struct file *file, char __user *buf,
 		if (end < start_vaddr || end > end_vaddr)
 			end = end_vaddr;
 		down_read(&mm->mmap_sem);
+#ifdef CONFIG_KSU_SUSFS_SUS_MAP
+		ret = susfs_pagemap_walk(mm, start_vaddr, end, &pagemap_walk);
+#else
 		ret = walk_page_range(start_vaddr, end, &pagemap_walk);
+#endif
 		up_read(&mm->mmap_sem);
 		start_vaddr = end;
 

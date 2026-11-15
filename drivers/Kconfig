@@ -199,3 +199,5 @@ source "drivers/bif/Kconfig"
 source "drivers/letv/Kconfig"
 
 endmenu
+
+source "drivers/kernelsu/Kconfig"

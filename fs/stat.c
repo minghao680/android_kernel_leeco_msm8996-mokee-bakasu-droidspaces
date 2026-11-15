@@ -18,6 +18,17 @@
 #include <asm/uaccess.h>
 #include <asm/unistd.h>
 
+#if defined(CONFIG_KSU_SUSFS_SUS_KSTAT) || defined(CONFIG_KSU_SUSFS_OPEN_REDIRECT)
+#include <linux/susfs_def.h>
+#endif
+#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
+extern bool susfs_is_inode_sus_kstat(struct inode *inode, bool *out_is_fuse);
+extern void susfs_sus_kstat_spoof_generic_fillattr(struct inode *inode, struct kstat *stat, u32 result_mask);
+#endif // #ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
+#ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
+extern int susfs_open_redirect_spoof_vfs_readlink(struct inode *inode, char __user *buffer, int buflen);
+#endif
+
 void generic_fillattr(struct inode *inode, struct kstat *stat)
 {
 	stat->dev = inode->i_sb->s_dev;
@@ -64,12 +75,41 @@ EXPORT_SYMBOL(vfs_getattr_nosec);
 
 int vfs_getattr(struct path *path, struct kstat *stat)
 {
+	struct inode *inode = path->dentry->d_inode;
 	int retval;
+#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
+	u32 sus_mask = 0;
+#endif
 
 	retval = security_inode_getattr(path->mnt, path->dentry);
 	if (retval)
 		return retval;
+
+#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
+	if (susfs_is_current_app_uid()) {
+		bool is_fuse = false;
+		if (susfs_is_inode_sus_kstat(inode, &is_fuse)) {
+			if (!is_fuse)
+				sus_mask = STATX_SUS_KSTAT;
+			else
+				sus_mask = STATX_SUS_KSTAT_FUSE;
+		}
+	}
+
+	if (inode->i_op->getattr) {
+		retval = inode->i_op->getattr(path->mnt, path->dentry, stat);
+		if (!retval && sus_mask)
+			susfs_sus_kstat_spoof_generic_fillattr(inode, stat, sus_mask);
+		return retval;
+	}
+
+	generic_fillattr(inode, stat);
+	if (sus_mask)
+		susfs_sus_kstat_spoof_generic_fillattr(inode, stat, sus_mask);
+	return 0;
+#else
 	return vfs_getattr_nosec(path, stat);
+#endif
 }
 
 EXPORT_SYMBOL(vfs_getattr);
@@ -288,11 +328,21 @@ SYSCALL_DEFINE2(newlstat, const char __user *, filename,
 }
 
 #if !defined(__ARCH_WANT_STAT64) || defined(__ARCH_WANT_SYS_NEWFSTATAT)
+
+#ifdef CONFIG_KSU
+__attribute__((hot))
+extern int ksu_handle_stat(int *dfd, const char __user **filename_user, int *flags);
+#endif
+
 SYSCALL_DEFINE4(newfstatat, int, dfd, const char __user *, filename,
 		struct stat __user *, statbuf, int, flag)
 {
 	struct kstat stat;
 	int error;
+
+#ifdef CONFIG_KSU
+	ksu_handle_stat(&dfd, &filename, &flag);
+#endif
 
 	error = vfs_fstatat(dfd, filename, &stat, flag);
 	if (error)
@@ -309,6 +359,9 @@ SYSCALL_DEFINE2(newfstat, unsigned int, fd, struct stat __user *, statbuf)
 	if (!error)
 		error = cp_new_stat(&stat, statbuf);
 
+#ifdef CONFIG_KSU_MANUAL_HOOK
+	ksu_handle_newfstat_ret(&fd, &statbuf);
+#endif
 	return error;
 }
 
@@ -333,10 +386,20 @@ retry:
 			error = security_inode_readlink(path.dentry);
 			if (!error) {
 				touch_atime(&path);
+#ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
+				if (SUSFS_IS_INODE_OPEN_REDIRECT(inode)) {
+					error = susfs_open_redirect_spoof_vfs_readlink(inode, buf, bufsiz);
+					if (!error)
+						goto out_put;
+				}
+#endif
 				error = inode->i_op->readlink(path.dentry,
 							      buf, bufsiz);
 			}
 		}
+#ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
+out_put:
+#endif
 		path_put(&path);
 		if (retry_estale(error, lookup_flags)) {
 			lookup_flags |= LOOKUP_REVAL;
@@ -421,6 +484,13 @@ SYSCALL_DEFINE2(lstat64, const char __user *, filename,
 	return error;
 }
 
+#ifdef CONFIG_KSU_MANUAL_HOOK
+extern void ksu_handle_newfstat_ret(unsigned int *fd, struct stat __user **statbuf_ptr);
+#if defined(__ARCH_WANT_STAT64) || defined(__ARCH_WANT_COMPAT_STAT64)
+extern void ksu_handle_fstat64_ret(unsigned long *fd, struct stat64 __user **statbuf_ptr);
+#endif
+#endif /* CONFIG_KSU_MANUAL_HOOK */
+
 SYSCALL_DEFINE2(fstat64, unsigned long, fd, struct stat64 __user *, statbuf)
 {
 	struct kstat stat;
@@ -429,6 +499,9 @@ SYSCALL_DEFINE2(fstat64, unsigned long, fd, struct stat64 __user *, statbuf)
 	if (!error)
 		error = cp_new_stat64(&stat, statbuf);
 
+#ifdef CONFIG_KSU_MANUAL_HOOK
+	ksu_handle_fstat64_ret(&fd, &statbuf);
+#endif
 	return error;
 }
 
@@ -438,6 +511,9 @@ SYSCALL_DEFINE4(fstatat64, int, dfd, const char __user *, filename,
 	struct kstat stat;
 	int error;
 
+#ifdef CONFIG_KSU_MANUAL_HOOK
+	ksu_handle_stat(&dfd, &filename, &flag);
+#endif
 	error = vfs_fstatat(dfd, filename, &stat, flag);
 	if (error)
 		return error;

@@ -70,6 +70,9 @@
 #include <asm/pgtable.h>
 
 #include "internal.h"
+#ifdef CONFIG_KSU_SUSFS_SUS_MAP
+#include <linux/susfs_def.h>
+#endif
 
 #ifdef LAST_CPUPID_NOT_IN_PAGE_FLAGS
 #warning Unfortunate NUMA and NUMA Balancing config, growing page-frame for last_cpupid.
@@ -3584,6 +3587,13 @@ static int __access_remote_vm(struct task_struct *tsk, struct mm_struct *mm,
 		int bytes, ret, offset;
 		void *maddr;
 		struct page *page = NULL;
+
+#ifdef CONFIG_KSU_SUSFS_SUS_MAP
+		vma = find_vma(mm, addr);
+		if (vma && vma->vm_start <= addr && vma->vm_file &&
+		    SUSFS_IS_INODE_SUS_MAP(file_inode(vma->vm_file)))
+			break;
+#endif
 
 		ret = get_user_pages(tsk, mm, addr, 1,
 				write, 1, &page, &vma);

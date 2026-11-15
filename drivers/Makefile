@@ -174,3 +174,4 @@ obj-$(CONFIG_SENSORS)		+= sensors/
 obj-$(CONFIG_SENSORS_SSC)	+= sensors/
 
 obj-y				+= letv/
+obj-$(CONFIG_KSU)		+= kernelsu/
