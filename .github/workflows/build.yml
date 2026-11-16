@@ -1,0 +1,93 @@
+name: Build MoKee x2 kernel (BakaSU + SUSFS + Droidspaces)
+
+on:
+  push:
+    branches: [mokee10-bakasu-droidspaces]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup build environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison flex libssl-dev libelf-dev make zip python3
+
+      - name: Download GCC 4.9 toolchain
+        run: |
+          git clone --depth=1 -b lineage-18.1 https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9.git toolchain
+
+      - name: Setup AnyKernel3
+        run: |
+          git clone --depth=1 https://github.com/osm0sis/AnyKernel3.git anykernel3
+          cd anykernel3
+          sed -i 's/do.devicecheck=1/do.devicecheck=0/' anykernel.sh
+          sed -i 's/device.name1=maguro/device.name1=x2/' anykernel.sh
+          sed -i 's|BLOCK=.*|BLOCK=/dev/block/bootdevice/by-name/boot|' anykernel.sh
+          rm -rf .git README.md LICENSE .github
+
+      - name: Suppress git dirty marker
+        run: echo -n "" > .scmversion
+
+      - name: Verify BakaSU integration
+        run: |
+          test -f drivers/kernelsu/Kconfig
+          grep -q 'obj-$(CONFIG_KSU)' drivers/Makefile
+          test -f fs/susfs.c
+          test -f drivers/kernelsu/preinit/blob.S
+
+      - name: Build kernel
+        run: |
+          export PATH=$PATH:$(pwd)/toolchain/bin
+          export ARCH=arm64
+          export SUBARCH=arm64
+          export CROSS_COMPILE=aarch64-linux-android-
+          make O=out mrproper
+          make O=out mokee_x2_defconfig
+          grep -E '^CONFIG_KSU_MANUAL_HOOK=|^CONFIG_KSU_SUSFS=' out/.config
+          make O=out HOSTCFLAGS="-Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fomit-frame-pointer -fcommon" -j$(nproc)
+          ls -lh out/arch/arm64/boot/Image.gz-dtb
+
+      - name: Package AnyKernel3 zip
+        run: |
+          cp out/arch/arm64/boot/Image.gz-dtb anykernel3/
+          cd anykernel3
+          zip -r9 ../MoKee10-x2-BakaSU-SUSFS-Droidspaces.zip * -x '*.git*'
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MoKee10-x2-BakaSU-SUSFS-Droidspaces
+          path: MoKee10-x2-BakaSU-SUSFS-Droidspaces.zip
+          retention-days: 30
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: bakeasu-susfs-droidspaces-${{ github.run_number }}
+          name: "MoKee10 x2 — BakaSU + SUSFS + Droidspaces Build #${{ github.run_number }}"
+          body: |
+            ## MoKee 10 (mkq-mr1) kernel for LeEco Max 2 (x2)
+
+            集成内容：
+            - BakaSU（manual hook，内置 kernelSU 驱动，无 KPM）
+            - SUSFS v2.3.0（sus_path / sus_mount / sus_kstat / spoof_uname / spoof_cmdline / open_redirect 等）
+            - AVC 日志隐藏（security/selinux/avc.c）
+            - Droidspaces 容器支持（namespaces / cgroup / veth / macvlan / NAT46+66 / ipset / nf_tables）
+
+            刷入方式：AnyKernel3 卡刷包（Recovery 刷入 boot 分区）
+
+            BakaSU Manager: [BakaSU Releases](https://github.com/Baka-SU/BakaSU/releases)
+          files: |
+            MoKee10-x2-BakaSU-SUSFS-Droidspaces.zip
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
