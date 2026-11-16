@@ -438,6 +438,13 @@ int ksu_handle_execve_common(int *fd, const char **filename_ptr, void *argv, voi
     // We only care AT_FDCWD & flags = 0
     // check int* fd and int* flags, because they might NOT ptr
     // Who exactly is so fond of type casting that even wrote it into the old version of documentation?
+    // Kernel-side manual hook (do_execveat) passes NULL when fd/flags are not
+    // accessible at the call site (SukiSU convention). Dereferencing them here
+    // would NULL-deref on the very first execve -> bootloop. Guard it.
+    if (!fd || !flags) {
+        goto skip_check;
+    }
+
     if (fd == (int *)AT_FDCWD && flags == 0) {
         goto skip_check;
     }
@@ -475,6 +482,12 @@ skip_check:
 
 int ksu_handle_execveat(int *fd, struct filename **filename_ptr, void *argv, void *envp, int *flags)
 {
+#ifndef KSU_DEBUG_STAGE
+#define KSU_DEBUG_STAGE 4
+#endif
+#if KSU_DEBUG_STAGE < 4
+    return 0; // debug stage < 4: preinit/adb_root/sulog not initialized yet
+#endif
     struct filename *filename;
     filename = *filename_ptr;
     if (IS_ERR(filename)) {
@@ -486,6 +499,12 @@ int ksu_handle_execveat(int *fd, struct filename **filename_ptr, void *argv, voi
 
 int ksu_handle_post_execveat(int *fd, struct filename **filename_ptr, void *argv, void *envp, int *flags, int *retval)
 {
+#ifndef KSU_DEBUG_STAGE
+#define KSU_DEBUG_STAGE 4
+#endif
+#if KSU_DEBUG_STAGE < 4
+    return 0; // debug stage < 4: hooks/features not initialized yet
+#endif
     struct filename *filename;
     filename = *filename_ptr;
     if (IS_ERR(filename)) {
