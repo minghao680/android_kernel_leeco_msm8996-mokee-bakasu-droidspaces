@@ -4641,18 +4641,6 @@ CONFIG_QMI_ENCDEC=y
 # ---------------------------------------------------------------------------
 # BakaSU (KernelSU downstream, manual hook + SUSFS) — x2 mkq-mr1 integration
 # ---------------------------------------------------------------------------
-CONFIG_KSU=y
-CONFIG_KSU_MULTI_MANAGER_SUPPORT=y
-CONFIG_KSU_SUSFS=y
-CONFIG_KSU_SUSFS_SUS_PATH=y
-CONFIG_KSU_SUSFS_SUS_MOUNT=y
-CONFIG_KSU_SUSFS_SUS_KSTAT=y
-CONFIG_KSU_SUSFS_SPOOF_UNAME=y
-CONFIG_KSU_SUSFS_ENABLE_LOG=y
-CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y
-CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y
-CONFIG_KSU_SUSFS_OPEN_REDIRECT=y
-CONFIG_KSU_SUSFS_SUS_MAP=y
 
 # ---------------------------------------------------------------------------
 # Droidspaces container support (kernel requirements)
@@ -4689,3 +4677,4 @@ CONFIG_NF_NAT_MASQUERADE_IPV6=y
 CONFIG_IP6_NF_TARGET_MASQUERADE=y
 CONFIG_IP6_NF_MANGLE=y
 # CONFIG_ANDROID_PARANOID_NETWORK is not set
+# CONFIG_KSU is not set
