@@ -1,3 +1,6 @@
+#ifndef KSU_DEBUG_STAGE
+#define KSU_DEBUG_STAGE 4
+#endif
 #include <linux/version.h>
 #include <linux/preempt.h>
 #include <linux/mm.h>
@@ -54,7 +57,7 @@
 #ifdef KSU_COMPAT_USE_STATIC_KEY
 DEFINE_STATIC_KEY_TRUE(ksu_su_compat_enabled);
 #else
-bool ksu_su_compat_enabled __read_mostly = true;
+bool ksu_su_compat_enabled __read_mostly = (KSU_DEBUG_STAGE >= 4);
 #endif
 
 static int su_compat_feature_get(u64 *value)

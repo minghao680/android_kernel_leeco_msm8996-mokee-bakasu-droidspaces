@@ -172,6 +172,10 @@ int __init kernelsu_init(void)
 {
     int ret;
 
+#ifndef KSU_DEBUG_STAGE
+#define KSU_DEBUG_STAGE 4
+#endif
+
     // clang-format off
     
     // ddk in x86-64 doesn't have generated/compile.h
@@ -226,12 +230,19 @@ int __init kernelsu_init(void)
         pr_alert("shell is allowed at init!");
     }
 
+#if KSU_DEBUG_STAGE >= 2
+    pr_info("DEBUG_STAGE: proceeding to full init (stage %d)\n", KSU_DEBUG_STAGE);
+#else
+    pr_info("DEBUG_STAGE: stage %d — stopping after prepare_creds, all hooks/features OFF\n", KSU_DEBUG_STAGE);
+#endif
+
     ksu_cred = prepare_creds();
     if (!ksu_cred) {
         pr_err("prepare cred failed!\n");
         return -ENOSYS;
     }
 
+#if KSU_DEBUG_STAGE >= 2
     pr_info("initializing symbol resolver\n");
     ksu_init_symbol_resolver();
     ret = ksu_selinux_inode_init();
@@ -255,6 +266,8 @@ int __init kernelsu_init(void)
 
     ksu_setuid_hook_init();
     ksu_sucompat_init();
+#endif
+
     if (ksu_late_loaded) {
         // This way are only happen when tracepoint+lkm
         // so we use ifdef MODULE there to avoid manual hook compile failed
@@ -290,19 +303,24 @@ int __init kernelsu_init(void)
         }
 #endif
     } else {
+#if KSU_DEBUG_STAGE >= 3
         ksu_hook_init();
-
+#endif
+#if KSU_DEBUG_STAGE >= 2
         ksu_module_blacklist_init(ksu_block_modules);
 
         ksu_allowlist_init();
 
         ksu_throne_tracker_init();
-
+#endif
+#if KSU_DEBUG_STAGE >= 4
         ksu_ksud_init();
 
         ksu_preinit_init();
-
+#endif
+#if KSU_DEBUG_STAGE >= 2
         ksu_file_wrapper_init();
+#endif
     }
 
 #ifdef MODULE

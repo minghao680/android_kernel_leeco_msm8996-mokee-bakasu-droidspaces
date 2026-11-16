@@ -1,3 +1,6 @@
+#ifndef KSU_DEBUG_STAGE
+#define KSU_DEBUG_STAGE 4
+#endif
 #include <linux/compiler.h>
 #include <linux/version.h>
 #include <linux/slab.h>
@@ -184,6 +187,9 @@ int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid)
 #ifdef CONFIG_KSU_MANUAL_HOOK_AUTO_SETUID_HOOK
     return 0; // dummy hook here
 #else
+#if defined(KSU_DEBUG_STAGE) && (KSU_DEBUG_STAGE < 3)
+    return 0; // debug stage < 3: hooks/features not initialized
+#endif
     // we rely on the fact that zygote always call setresuid(3) with same uids
     return ksu_handle_setuid(ruid, ksu_get_uid_t(current_uid()));
 #endif

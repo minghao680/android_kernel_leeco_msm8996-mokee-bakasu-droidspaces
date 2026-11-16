@@ -1,3 +1,6 @@
+#ifndef KSU_DEBUG_STAGE
+#define KSU_DEBUG_STAGE 4
+#endif
 #include "feature/selinux_hide.h"
 #include <linux/rcupdate.h>
 #include <linux/slab.h>
@@ -126,8 +129,8 @@ static void stop_execve_hook(void);
             static_branch_disable(&ksu_is_input_hook_enabled);
     }
     #else
-    bool ksu_init_rc_hook __read_mostly = true;
-    bool ksu_is_input_hook_enabled __read_mostly = true;
+    bool ksu_init_rc_hook __read_mostly = (KSU_DEBUG_STAGE >= 4);
+    bool ksu_is_input_hook_enabled __read_mostly = (KSU_DEBUG_STAGE >= 4);
 
     #define ksu_init_rc_hook_inactive() (likely(!ksu_init_rc_hook))
     #define ksu_input_hook_inactive() (likely(!ksu_is_input_hook_enabled))
@@ -155,7 +158,7 @@ static void stop_execve_hook(void);
             pr_info("stop init_rc_hook!\n");
         }
     #else
-        bool ksu_init_rc_hook __read_mostly = true;
+        bool ksu_init_rc_hook __read_mostly = (KSU_DEBUG_STAGE >= 4);
         #define ksu_init_rc_hook_inactive() (likely(!ksu_init_rc_hook))
         static void stop_init_rc_hook(void)
         {
@@ -176,7 +179,7 @@ static void stop_execve_hook(void);
             vol_detector_exit();
         }
     #else
-        bool ksu_input_hook __read_mostly = true;
+        bool ksu_input_hook __read_mostly = (KSU_DEBUG_STAGE >= 4);
         #define ksu_input_hook_inactive() (likely(!ksu_input_hook))
 
         #ifdef CONFIG_KSU_MANUAL_HOOK_AUTO_INPUT_HOOK
@@ -929,7 +932,7 @@ void ksu_stop_ksud_execve_hook(void)
         static_branch_disable(&ksud_execve_key);
 }
 #else
-bool ksud_execve_key __read_mostly = true;
+bool ksud_execve_key __read_mostly = (KSU_DEBUG_STAGE >= 4);
 
 void ksu_stop_ksud_execve_hook(void)
 {
