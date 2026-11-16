@@ -1,0 +1,6 @@
+id=devnet_tun
+name=/dev/net/tun node
+version=v1.0
+versionCode=1
+author=minghao680
+description=Creates /dev/net/tun -> /dev/tun at boot so TUN/TAP checks and container networking work.

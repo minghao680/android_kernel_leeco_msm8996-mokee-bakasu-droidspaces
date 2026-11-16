@@ -1,0 +1,6 @@
+id=treble_off
+name=Treble flag off (VINTF bypass)
+version=v1.0
+versionCode=1
+author=minghao680
+description=Sets ro.treble.enabled=false at post-fs-data so Build.isBuildConsistent() skips the VINTF check. Fallback used because CONFIG_SYSVIPC=y (required by Droidspaces) violates the Android 10 framework compatibility matrix.

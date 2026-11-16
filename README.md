@@ -124,6 +124,19 @@ make O=out HOSTCFLAGS="-Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fomit
 
 ---
 
+## 辅助模块
+
+`modules/` 目录收录本分支实机使用的 BakaSU / KernelSU 辅助模块源码：
+
+| 目录 | 模块 ID | 作用 | 实机状态 |
+|---|---|---|---|
+| `modules/treble_off` | `treble_off` | 关闭 `ro.treble.enabled`，绕过 `CONFIG_SYSVIPC=y` 导致的 VINTF 校验弹窗 | 启用 |
+| `modules/devnet_tun` | `devnet_tun` | 创建 `/dev/net/tun -> /dev/tun`，补齐 TUN/TAP 设备节点 | 启用 |
+| `modules/vintf_sysvipc` | `vintf_sysvipc` | 覆盖 5 个 VINTF 兼容矩阵，从根上绕过 `CONFIG_SYSVIPC=y` 的校验 | 保留，当前未启用 |
+| `modules/wifi_nosleep` | `wifi_nosleep` | 固定 WiFi 休眠策略为“永不休眠”，并持续关闭 `wlan0` 的 802.11 省电 | 已安装，重启后自动生效 |
+
+打包与安装见 [`modules/README.md`](modules/README.md)。
+
 ## 已知限制（3.18 结构性，非配置漏项）
 
 | 项 | 原因 | 影响 |

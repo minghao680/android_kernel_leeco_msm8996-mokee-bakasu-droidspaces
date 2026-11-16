@@ -1,0 +1,6 @@
+id=vintf_sysvipc
+name=VINTF SYSVIPC compat (Droidspaces)
+version=v1.0
+versionCode=1
+author=minghao680
+description=Allows CONFIG_SYSVIPC=y kernels to pass the VINTF kernel-config check, removing the boot "device internal problem" dialog. Files under system/etc/vintf are overlaid by KernelSU; real /system is untouched.

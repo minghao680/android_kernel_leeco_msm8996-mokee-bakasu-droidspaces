@@ -1,0 +1,6 @@
+id=wifi_nosleep
+name=WiFi 不休眠
+version=v1.0
+versionCode=1
+author=minghao680
+description=开机后把 Android WiFi 休眠策略固定为“永不休眠”，并持续关闭 wlan0 的 802.11 省电（iw power_save off）。防止息屏/空闲时 WiFi 进入省电导致入站 ARP、TCP 连接超时。
