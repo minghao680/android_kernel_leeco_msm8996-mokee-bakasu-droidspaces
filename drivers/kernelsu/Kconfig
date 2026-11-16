@@ -77,25 +77,10 @@ config KSU_MULTI_MANAGER_SUPPORT
 	help
 		Enable multi KernelSU manager support
 
-choice
-	prompt "KernelSU Hooking Method"
-	depends on KSU
-	default KSU_TRACEPOINT_HOOK
-	help
-	  Select the hooking method for KernelSU.
-	  Note: Tracepoint Syscall Redirect hook is only supported for GKI2(5.10+)
-
-config KSU_TRACEPOINT_HOOK
-	bool "Tracepoint Syscall Redirect"
-	help
-	  The standard, upstream method for modern kernels. 
-	  Utilizes GKI tracepoints for syscall redirection. 
-	  The implementation is only for devices with GKI2 support.
-	  Support for kernel 5.10+
-
 config KSU_MANUAL_HOOK
 	bool "Manually hook KernelSU"
-	depends on KSU != m
+	depends on KSU
+	default y
 	help
 	  If enabled, it hooks the required KernelSU syscalls
 	  with a manually-patched function.
@@ -104,15 +89,12 @@ config KSU_MANUAL_HOOK
 config KSU_SUSFS
 	bool "SUSFS support (kernel-side susfs required)"
 	depends on KSU && 64BIT
+	default y
 	help
-	  Enable SUSFS-related glue inside the KernelSU driver
-	  (sus path/mount/kstat/uname/cmdline spoofing and friends).
+	  Enable SUSFS-related glue inside the KernelSU driver.
 	  Requires the kernel-side susfs patches (fs/susfs.c,
 	  include/linux/susfs.h) to be present in the kernel tree.
-	  On non-GKI kernels with CONFIG_KSU_MANUAL_HOOK this can be
-	  enabled together with manual hooks.
-
-endchoice
+	  Can be enabled together with manual hooks on non-GKI kernels.
 
 menu "KernelSU - Manual Hook Auto hook"
     depends on KSU_MANUAL_HOOK
@@ -131,7 +113,6 @@ config KSU_MANUAL_HOOK_AUTO_SETUID_HOOK
 	help
 	  THIS OPTION CAN NOT BE USED IN KERNEL_VERSION >= 6.8 DUE TO LSM CHANGES
 	  YOU MUST MANUALLY HOOK SETRESUID
-
 	  If you turn off this option, edit kernel/sys.c.
 	  In __sys_setresuid(uid_t ruid, uid_t euid, uid_t suid)
 	  add a call to ksu_handle_setresuid there.
@@ -143,7 +124,6 @@ config KSU_MANUAL_HOOK_AUTO_INITRC_HOOK
 	help
 	  THIS OPTION CAN NOT BE USED IN KERNEL_VERSION >= 6.8 DUE TO LSM CHANGES
 	  YOU MUST MANUALLY HOOK SYS_READ
-
 	  If you turn off this option, edit fs/read_write.c.
 	  in SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 	  add a call to ksu_handle_sys_read there.

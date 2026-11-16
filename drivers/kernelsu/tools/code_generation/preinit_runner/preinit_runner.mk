@@ -31,11 +31,17 @@ ifeq ($(ARCH),arm)
 KSU_RUNNER_LIBS := $(shell $(CC) $(CLANG_FLAGS) -print-libgcc-file-name)
 endif
 
+KSU_AS_CFLAGS := $(KBUILD_AFLAGS)
+
 quiet_cmd_ksu_runner = CC      $@
       cmd_ksu_runner = mkdir -p $(dir $@) && \
 		$(CC) $(KSU_RUNNER_CFLAGS) -c -o $@.o $< && \
 		$(LD) -static -nostdlib -e _start --gc-sections -s -o $@ $@.o $(KSU_RUNNER_LIBS) && \
 		rm -f $@.o
+
+quiet_cmd_ksu_blob = AS      $@
+      cmd_ksu_blob = mkdir -p $(dir $@) && \
+		$(CC) $(KSU_AS_CFLAGS) -DKSU_PREINIT_RUNNER_BIN=\"$(KSU_RUNNER_BIN)\" -c -o $@ $<
 
 $(KSU_RUNNER_TARGET): $(KSU_RUNNER_SRC)/runner.c \
 		$(wildcard $(KSU_RUNNER_SRC)/nolibc/*.h \
@@ -44,7 +50,9 @@ $(KSU_RUNNER_TARGET): $(KSU_RUNNER_SRC)/runner.c \
 	$(call if_changed,ksu_runner)
 
 targets += preinit/runner.elf
-$(obj)/preinit/blob.o: $(KSU_RUNNER_TARGET)
+targets += preinit/blob.o
+$(obj)/preinit/blob.o: $(KSU_SRC)/preinit/blob.S $(KSU_RUNNER_TARGET)
+	$(call if_changed,ksu_blob)
 asflags-y += -DKSU_PREINIT_RUNNER_BIN=\"$(KSU_RUNNER_BIN)\"
 else
 $(warning -- $(REPO_NAME): $(KSU_UAPI_INC) not found, preinit disabled)

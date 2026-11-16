@@ -523,9 +523,15 @@ int ksu_handle_faccessat(int *dfd, struct filename **filename, int *mode, int *_
     //     return 0;
     // }
 
+#ifdef KSU_COMPAT_USE_STATIC_KEY
     if (!static_branch_unlikely(&ksu_su_compat_enabled)) {
         return 0;
     }
+#else
+    if (!ksu_su_compat_enabled) {
+        return 0;
+    }
+#endif
 
     if (unlikely(IS_ERR(*filename) || (*filename)->name == NULL))
         return 0;
@@ -597,9 +603,15 @@ int ksu_handle_stat(int *dfd, struct filename **filename, int *flags)
     //     return 0;
     // }
 
+#ifdef KSU_COMPAT_USE_STATIC_KEY
     if (!static_branch_unlikely(&ksu_su_compat_enabled)) {
         return 0;
     }
+#else
+    if (!ksu_su_compat_enabled) {
+        return 0;
+    }
+#endif
 
     if (!ksu_is_allow_uid_for_current(ksu_get_uid_t(current_uid())))
         return 0;

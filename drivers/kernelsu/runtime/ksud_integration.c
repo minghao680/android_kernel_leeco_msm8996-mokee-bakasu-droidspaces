@@ -105,17 +105,18 @@ static void stop_execve_hook(void);
         pr_info("unregister input kprobe: %d!\n", ret);
     }
 #elif defined(CONFIG_KSU_SUSFS)
-    DEFINE_STATIC_KEY_TRUE(ksu_is_init_rc_hook_enabled);
+    #if defined(KSU_COMPAT_USE_STATIC_KEY)
+    DEFINE_STATIC_KEY_TRUE(ksu_init_rc_hook);
     DEFINE_STATIC_KEY_TRUE(ksu_is_input_hook_enabled);
 
     // use define to avoid ifdef
-    #define ksu_init_rc_hook_inactive() (!static_branch_likely(&ksu_is_init_rc_hook_enabled))
+    #define ksu_init_rc_hook_inactive() (!static_branch_likely(&ksu_init_rc_hook))
     #define ksu_input_hook_inactive() (!static_branch_likely(&ksu_is_input_hook_enabled))
 
     static void stop_init_rc_hook(void)
     {
-        if (static_key_enabled(&ksu_is_init_rc_hook_enabled))
-            static_branch_disable(&ksu_is_init_rc_hook_enabled);
+        if (static_key_enabled(&ksu_init_rc_hook))
+            static_branch_disable(&ksu_init_rc_hook);
         pr_info("stop init_rc_hook!\n");
     }
 
@@ -124,6 +125,24 @@ static void stop_execve_hook(void);
         if (static_key_enabled(&ksu_is_input_hook_enabled))
             static_branch_disable(&ksu_is_input_hook_enabled);
     }
+    #else
+    bool ksu_init_rc_hook __read_mostly = true;
+    bool ksu_is_input_hook_enabled __read_mostly = true;
+
+    #define ksu_init_rc_hook_inactive() (likely(!ksu_init_rc_hook))
+    #define ksu_input_hook_inactive() (likely(!ksu_is_input_hook_enabled))
+
+    static void stop_init_rc_hook(void)
+    {
+        ksu_init_rc_hook = false;
+        pr_info("stop init_rc_hook!\n");
+    }
+
+    static inline void stop_input_hook(void)
+    {
+        ksu_is_input_hook_enabled = false;
+    }
+    #endif
 
 #elif defined(CONFIG_KSU_MANUAL_HOOK)
     #if defined(CONFIG_KSU_MANUAL_HOOK_AUTO_INITRC_HOOK) && defined(KSU_COMPAT_USE_STATIC_KEY)
