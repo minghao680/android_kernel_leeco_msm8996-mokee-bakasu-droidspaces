@@ -1,4 +1,13 @@
 /*
+ * SUBSYS_TAG(_t) is used to reserve a contiguous block of subsystem IDs.
+ * It is a noop if the including file does not define it.
+ */
+#ifndef SUBSYS_TAG
+#define __TMP_SUBSYS_TAG
+#define SUBSYS_TAG(_x)
+#endif
+
+/*
  * List of cgroup subsystems.
  *
  * DO NOT ADD ANY SUBSYSTEM WITHOUT EXPLICIT ACKS FROM CGROUP MAINTAINERS.
@@ -56,11 +65,27 @@ SUBSYS(hugetlb)
 #endif
 
 /*
+ * Subsystems that implement the can_fork() family of callbacks.
+ */
+SUBSYS_TAG(CANFORK_START)
+
+#if IS_ENABLED(CONFIG_CGROUP_PIDS)
+SUBSYS(pids)
+#endif
+
+SUBSYS_TAG(CANFORK_END)
+
+/*
  * The following subsystems are not supported on the default hierarchy.
  */
 #if IS_ENABLED(CONFIG_CGROUP_DEBUG)
 SUBSYS(debug)
 #endif
+#ifdef __TMP_SUBSYS_TAG
+#undef __TMP_SUBSYS_TAG
+#undef SUBSYS_TAG
+#endif
+
 /*
  * DO NOT ADD ANY SUBSYSTEM WITHOUT EXPLICIT ACKS FROM CGROUP MAINTAINERS.
  */

@@ -970,6 +970,16 @@ config CGROUP_FREEZER
 	  Provides a way to freeze and unfreeze all tasks in a
 	  cgroup.
 
+config CGROUP_PIDS
+	bool "PIDs cgroup subsystem"
+	help
+	  Provides a way to limit the number of tasks in a cgroup.  Tasks
+	  may be charged to a cgroup hierarchy and fork() will fail with
+	  -EAGAIN once the limit in pids.max is reached.  The current
+	  number of charged tasks is shown in pids.current.
+
+	  Say N if unsure.
+
 config CGROUP_DEVICE
 	bool "Device controller for cgroups"
 	help
