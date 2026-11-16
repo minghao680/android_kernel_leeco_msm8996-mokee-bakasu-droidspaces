@@ -1,0 +1,70 @@
+name: Build kernel
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - mokee10-pids
+      - mokee10-bakasu-droidspaces
+    paths-ignore:
+      - '**.md'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: mokee_x2 defconfig
+    runs-on: ubuntu-22.04
+    timeout-minutes: 180
+
+    steps:
+      - name: Checkout (with BakaSU submodule)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Host dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc bison flex libssl-dev python3 zip
+          # Android GCC 4.9 wrappers use "#!/usr/bin/python"
+          sudo ln -sf /usr/bin/python3 /usr/bin/python
+
+      - name: Fetch Android GCC 4.9 (aarch64)
+        run: |
+          git clone --depth 1 \
+            https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9 \
+            "$RUNNER_TEMP/gcc49"
+
+      - name: Build
+        run: |
+          export PATH="$RUNNER_TEMP/gcc49/bin:$PATH"
+          export ARCH=arm64 SUBARCH=arm64 CROSS_COMPILE=aarch64-linux-android-
+          aarch64-linux-android-gcc --version | head -1
+
+          make O=out mokee_x2_defconfig
+          make O=out olddefconfig
+
+          # 阶段 3 的验收点：符号必须真的进 .config
+          grep -q '^CONFIG_CGROUP_PIDS=y' out/.config
+
+          make O=out \
+            HOSTCFLAGS="-Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fomit-frame-pointer -fcommon" \
+            -j"$(nproc)"
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p artifact
+          cp out/arch/arm64/boot/Image.gz-dtb artifact/
+          cp out/System.map artifact/
+          cp out/.config artifact/config.txt
+          ls -la artifact
+
+      - name: Upload kernel
+        uses: actions/upload-artifact@v4
+        with:
+          name: leeco-x2-mokee10-${{ github.sha }}
+          path: artifact/*
+          retention-days: 30
