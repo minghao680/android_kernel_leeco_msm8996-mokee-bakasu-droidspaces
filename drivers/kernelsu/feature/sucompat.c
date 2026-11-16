@@ -435,6 +435,13 @@ int ksu_handle_execve_common(int *fd, const char **filename_ptr, void *argv, voi
     // We only care AT_FDCWD & flags = 0
     // check int* fd and int* flags, because they might NOT ptr
     // Who exactly is so fond of type casting that even wrote it into the old version of documentation?
+    // Kernel-side manual hook (do_execveat) passes NULL when fd/flags are not
+    // accessible at the call site (SukiSU convention). Dereferencing them here
+    // would NULL-deref on the very first execve -> bootloop. Guard it.
+    if (!fd || !flags) {
+        goto skip_check;
+    }
+
     if (fd == (int *)AT_FDCWD && flags == 0) {
         goto skip_check;
     }
