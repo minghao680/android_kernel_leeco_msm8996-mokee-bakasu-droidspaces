@@ -75,9 +75,9 @@ EXPORT_SYMBOL(vfs_getattr_nosec);
 
 int vfs_getattr(struct path *path, struct kstat *stat)
 {
-	struct inode *inode = path->dentry->d_inode;
 	int retval;
 #ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
+	struct inode *inode = path->dentry->d_inode;
 	u32 sus_mask = 0;
 #endif
 
